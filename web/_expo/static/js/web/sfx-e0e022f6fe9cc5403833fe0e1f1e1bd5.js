@@ -1,0 +1,9 @@
+__d(function(g,r,i,a,m,e,d){"use strict";Object.defineProperty(e,'__esModule',{value:!0}),Object.defineProperty(e,"SOUND_FILES",{enumerable:!0,get:function(){return t}});const t={tap:r(d[0]),submit:r(d[1]),tick:r(d[2]),fooled:r(d[3]),truth:r(d[4]),points:r(d[5]),win:r(d[6]),lose:r(d[7])}},1749,[1751,1752,1753,1754,1755,1756,1757,1758]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/tap.2ed298bf291f1239f5e21013b1e9aeeb.wav"},1751,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/submit.b9f6fd246a8175866250f751558a67a0.wav"},1752,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/tick.e6da0b42d9a6e45faab421c08981ed3b.wav"},1753,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/fooled.03953682bfe300663e97b01c7da15e7d.wav"},1754,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/truth.4a696a9f79dfb6f4a33ebf0100bebc62.wav"},1755,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/points.5873054a769a6179c733bb954cedfc07.wav"},1756,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/win.2f60bba45e670061f72b39b6b0749ea0.wav"},1757,[]);
+__d(function(g,r,i,a,m,e,d){m.exports="/assets/assets/sfx/lose.7ca714e1611541f53ef173fab045d3dc.wav"},1758,[]);
