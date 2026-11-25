@@ -14,6 +14,10 @@ on:
         description: "Nach TestFlight hochladen (braucht ASC-Secrets)"
         type: boolean
         default: true
+      version:
+        description: "App-Version (MARKETING_VERSION); 1.0 ist live → neue Builds auf 1.1"
+        type: string
+        default: "1.1"
       build_number:
         description: "Build-Nummer (leer = Zeitstempel JJJJMMTThhmm)"
         type: string
@@ -34,6 +38,7 @@ jobs:
       IOS_DIST_P12: ${{ secrets.IOS_DIST_P12 }}
       IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
       IOS_APPSTORE_PROFILE: ${{ secrets.IOS_APPSTORE_PROFILE }}
+      APP_VERSION: ${{ inputs.version || '1.1' }}
       WANT_UPLOAD: ${{ (inputs.upload || contains(github.event.head_commit.message, '[testflight]')) && 'yes' || 'no' }}
     steps:
       - uses: actions/checkout@v4
@@ -91,11 +96,11 @@ jobs:
                 -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath build/ios/App.xcarchive \
-            MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION="${{ steps.nr.outputs.build }}" \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="${{ steps.nr.outputs.build }}" \
             "${AUTH[@]}" archive | tail -80
           xcodebuild -exportArchive -archivePath build/ios/App.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist -exportPath build/ios/export "${AUTH[@]}"
-          echo "Hochgeladen: 1.0 (${{ steps.nr.outputs.build }}) — erscheint nach 5–30 Min. in TestFlight"
+          echo "Hochgeladen: $APP_VERSION (${{ steps.nr.outputs.build }}) — erscheint nach 5–30 Min. in TestFlight"
 
       - name: Compile-Check ohne Signierung
         if: ${{ !(env.WANT_UPLOAD == 'yes' && env.ASC_KEY_P8 != '' && env.ASC_ISSUER_ID != '') }}

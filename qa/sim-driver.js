@@ -70,6 +70,11 @@
         var r1 = inp.getBoundingClientRect(); var b1 = findBtn(/^Finte abgeben$/); var r2 = b1 ? b1.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
         log('QA-RECT input', Math.round(r1.left + r1.width / 2), Math.round(r1.top + r1.height / 2), 'button', Math.round(r2.left + r2.width / 2), Math.round(r2.top + r2.height / 2), 'viewport', innerWidth, innerHeight);
       }
+      if (acted.touchStart && !acted.bluff && inp) {
+        var q1 = inp.getBoundingClientRect(); var qb = findBtn(/^Finte abgeben$/); var q2 = qb ? qb.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+        var key = [Math.round(q1.top), Math.round(q2.top), innerHeight].join(',');
+        if (key !== acted.rectKey) { acted.rectKey = key; log('QA-RECT input', Math.round(q1.left + q1.width / 2), Math.round(q1.top + q1.height / 2), 'button', Math.round(q2.left + q2.width / 2), Math.round(q2.top + q2.height / 2), 'viewport', innerWidth, innerHeight, 'sichtbar-bis', Math.round(window.visualViewport ? window.visualViewport.height : innerHeight)); }
+      }
       if (acted.touchStart && !acted.bluff) {
         if (has('Die anderen schreiben noch') || has('Was ist die Wahrheit')) { log('TOUCH-BLUFF OK (per echter Tastatur abgeschickt)'); acted.bluff = 1; }
         else if (Date.now() - acted.touchStart > 30000) {

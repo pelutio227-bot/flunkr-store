@@ -86,11 +86,14 @@ jobs:
                 IX=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="input"){print $(i+1); exit}}'); IY=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="input"){print $(i+2); exit}}')
                 BX=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+1); exit}}'); BY=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+2); exit}}')
                 xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-1-vorher.jpg" >/dev/null 2>&1
-                idb ui tap --udid "$UDID" "$IX" "$IY"; sleep 2
+                idb ui tap --udid "$UDID" "$IX" "$IY"; sleep 2.5
                 xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-2-tastatur.jpg" >/dev/null 2>&1
+                grep "QA-RECT" out/run$i-console.log | tail -1 | tee out/run$i-touch-rect-tastatur.txt
                 idb ui text --udid "$UDID" "Alpakas"; sleep 1.5
                 xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-3-getippt.jpg" >/dev/null 2>&1
-                # Knopf an seiner (evtl. durch Tastatur verschobenen) Stelle: neu aus dem Log lesen, falls die Seite neu gemessen hat
+                # Knopf an seiner aktuellen Stelle (Layout aendert sich mit offener Tastatur): letzte Messung aus dem Log
+                L=$(grep "QA-RECT" out/run$i-console.log | tail -1); echo "$L"
+                BX=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+1); exit}}'); BY=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+2); exit}}')
                 idb ui tap --udid "$UDID" "$BX" "$BY"; sleep 2
                 xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-4-abgeschickt.jpg" >/dev/null 2>&1
                 echo "touch: input $IX,$IY button $BX,$BY" | tee out/run$i-touch.done
