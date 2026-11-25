@@ -17,9 +17,9 @@ on:
         type: string
         default: "iPhone 16 Pro"
       runner:
-        description: "macOS-Runner (bei Kapazitaetsengpass macos-15 oder macos-26-large probieren)"
+        description: "macOS-Runner (Standard macos-15: mehr freie Kapazitaet als macos-26)"
         type: string
-        default: "macos-26"
+        default: "macos-15"
       touch:
         description: "Finte mit ECHTEN Taps + Bildschirmtastatur (idb) eingeben"
         type: boolean
@@ -27,7 +27,7 @@ on:
 
 jobs:
   sim:
-    runs-on: ${{ inputs.runner || 'macos-26' }}
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
