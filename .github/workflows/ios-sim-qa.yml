@@ -1,0 +1,81 @@
+name: iOS Simulator QA
+
+# Baut die echte Capacitor-App (WKWebView, capacitor://localhost) fuer den iOS-Simulator, haengt den
+# QA-Treiber qa/sim-driver.js ein und spielt den Weg eines NEUEN Users gegen https://flunkr.abooz.ch durch:
+# Onboarding → Profil → Proberunde → Home → Spiel erstellen → Konto loeschen. Ergebnis: Konsolen-Log + Screenshots
+# als Artefakt «sim-qa». Nur manuell (workflow_dispatch); der Store-Build bleibt davon unberuehrt.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Anzahl frischer Durchlaeufe (App wird jedes Mal neu installiert)"
+        type: string
+        default: "3"
+      device:
+        description: "Simulator (Name-Teilstring)"
+        type: string
+        default: "iPhone 16 Pro"
+
+jobs:
+  sim:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Xcode waehlen
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X" || true
+          xcodebuild -version
+      - name: Web-Export + QA-Treiber
+        run: |
+          bun install
+          FLUNKR_DIST=web bun run build
+          cp qa/sim-driver.js www/sim-driver.js
+          sed -i '' 's#</head>#<script src="/sim-driver.js"></script>\n</head>#' www/index.html
+          grep -c sim-driver www/index.html
+          bunx cap sync ios
+      - name: Build fuer Simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim \
+            CODE_SIGNING_ALLOWED=NO build | tail -25
+          ls build/sim/Build/Products/Debug-iphonesimulator/
+      - name: Simulator-Laeufe
+        env:
+          RUNS: ${{ inputs.runs }}
+          DEVICE: ${{ inputs.device }}
+        run: |
+          set -u
+          mkdir -p out
+          APP=build/sim/Build/Products/Debug-iphonesimulator/App.app
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys,os; d=json.load(sys.stdin)['devices']; n=os.environ['DEVICE']; l=[x for k,v in d.items() if 'iOS' in k for x in v if n in x['name']]; l=l or [x for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']]; print(l[-1]['udid'])")
+          echo "Simulator $UDID"; xcrun simctl boot "$UDID" || true; xcrun simctl bootstatus "$UDID" -b
+          ok=0
+          for i in $(seq 1 "$RUNS"); do
+            echo "=== Lauf $i ==="
+            xcrun simctl uninstall "$UDID" com.pelutio.flunkr || true
+            xcrun simctl install "$UDID" "$APP"
+            ( xcrun simctl launch --console-pty --terminate-running-process "$UDID" com.pelutio.flunkr > out/run$i-console.log 2>&1 & )
+            n=0
+            while [ $n -lt 160 ]; do
+              sleep 3; n=$((n+1))
+              [ $((n % 3)) -eq 0 ] && xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-$(printf %03d $n).jpg" >/dev/null 2>&1
+              grep -q "QA-DONE" out/run$i-console.log && break
+            done
+            xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-zz-final.jpg" >/dev/null 2>&1 || true
+            grep "QA|" out/run$i-console.log | tail -400 > out/run$i-qa.log || true
+            if grep -q "QA-DONE OK" out/run$i-console.log; then echo "Lauf $i OK"; ok=$((ok+1)); else echo "Lauf $i FEHLER"; tail -60 out/run$i-qa.log; fi
+            xcrun simctl terminate "$UDID" com.pelutio.flunkr || true
+          done
+          echo "Ergebnis: $ok / $RUNS OK" | tee out/summary.txt
+          [ "$ok" = "$RUNS" ]
+      - name: Artefakte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-qa
+          path: out/
