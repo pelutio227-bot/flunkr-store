@@ -58,13 +58,26 @@
     var end = Date.now() + 300000;
     while (Date.now() < end) {
       if (has('Jetzt richtig loslegen')) return;
-      var v = findBtn(/^Verstanden$/); if (v) { tap(v, 'Verstanden'); await sleep(400); }
+      var v = findBtn(/^Verstanden$/); if (v && !(window.__QA_TOUCH && has('Jetzt lügen'))) { tap(v, 'Verstanden'); await sleep(400); }
       if (has('Du wählst die Kategorie') && !acted.cat) {
         var tiles = buttons().filter(function (b) { var s = (b.innerText || '').trim(); return s && !/Verstanden|Spiel verlassen|✕|⚑|melden/i.test(s) && !/Spiel verlassen/.test(b.getAttribute('aria-label') || ''); });
         if (tiles[0]) { tap(tiles[0], 'Kategorie ' + tiles[0].innerText.trim().slice(0, 30)); acted.cat = 1; }
       }
-      var inp = document.querySelector('input[placeholder="Deine Finte"]');
-      if (inp && !acted.bluff) { fill(inp, 'Alpakas'); await sleep(300); tap(findBtn(/^Finte abgeben$/), 'Finte abgeben'); acted.bluff = 1; }
+      var inp = document.querySelector('input[placeholder^="Deine Finte"],textarea[placeholder^="Deine Finte"]');
+      if (inp && !acted.bluff && window.__QA_TOUCH && !acted.touchStart) {
+        // Echt-Touch-Modus: CI tippt per idb ins Feld, schreibt und tippt «Finte abgeben» (echte Tastatur!)
+        acted.touchStart = Date.now();
+        var r1 = inp.getBoundingClientRect(); var b1 = findBtn(/^Finte abgeben$/); var r2 = b1 ? b1.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+        log('QA-RECT input', Math.round(r1.left + r1.width / 2), Math.round(r1.top + r1.height / 2), 'button', Math.round(r2.left + r2.width / 2), Math.round(r2.top + r2.height / 2), 'viewport', innerWidth, innerHeight);
+      }
+      if (acted.touchStart && !acted.bluff) {
+        if (has('Die anderen schreiben noch') || has('Was ist die Wahrheit')) { log('TOUCH-BLUFF OK (per echter Tastatur abgeschickt)'); acted.bluff = 1; }
+        else if (Date.now() - acted.touchStart > 30000) {
+          log('TOUCH-BLUFF FAIL: nach 30 s mit echten Taps nicht abgeschickt, Feld=' + JSON.stringify(inp.value) + ' fokussiert=' + (document.activeElement === inp) + ' innerHeight=' + innerHeight + ' vv=' + (window.visualViewport && Math.round(window.visualViewport.height)));
+          acted.bluff = 1; if (!inp.value) fill(inp, 'Alpakas'); await sleep(300); tap(findBtn(/^Finte abgeben$/), 'Finte abgeben (Ersatz)');
+        }
+      }
+      if (inp && !acted.bluff && !window.__QA_TOUCH) { fill(inp, 'Alpakas'); await sleep(300); tap(findBtn(/^Finte abgeben$/), 'Finte abgeben'); acted.bluff = 1; }
       var truth = findBtn(/^Das ist die Wahrheit!$/);
       if (truth && !acted.vote) {
         var opts = buttons().filter(function (b) { var s = (b.innerText || '').trim(); return s && s !== 'Alpakas' && !/Verstanden|Spiel verlassen|Das ist die Wahrheit|melden|Deine Finte|✕|⚑/i.test(s); });

@@ -16,6 +16,10 @@ on:
         description: "Simulator (Name-Teilstring)"
         type: string
         default: "iPhone 16 Pro"
+      touch:
+        description: "Finte mit ECHTEN Taps + Bildschirmtastatur (idb) eingeben"
+        type: boolean
+        default: true
 
 jobs:
   sim:
@@ -35,6 +39,7 @@ jobs:
           FLUNKR_DIST=web bun run build
           cp qa/sim-driver.js www/sim-driver.js
           sed -i '' 's#</head>#<script src="/sim-driver.js"></script>\n</head>#' www/index.html
+          if [ "${{ inputs.touch }}" = "true" ]; then sed -i '' 's#<script src="/sim-driver.js">#<script>window.__QA_TOUCH=1</script><script src="/sim-driver.js">#' www/index.html; fi
           grep -c sim-driver www/index.html
           bunx cap sync ios
       - name: Build fuer Simulator
@@ -44,8 +49,16 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim \
             CODE_SIGNING_ALLOWED=NO build | tail -25
           ls build/sim/Build/Products/Debug-iphonesimulator/
+      - name: idb (echte Taps) + Bildschirmtastatur
+        if: ${{ inputs.touch }}
+        run: |
+          brew tap facebook/fb >/dev/null && brew install idb-companion >/dev/null 2>&1 || brew install facebook/fb/idb-companion
+          pip3 install --break-system-packages fb-idb >/dev/null 2>&1 || pip3 install fb-idb
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          which idb && idb --help | head -3
       - name: Simulator-Laeufe
         env:
+          TOUCH: ${{ inputs.touch }}
           RUNS: ${{ inputs.runs }}
           DEVICE: ${{ inputs.device }}
         run: |
@@ -53,7 +66,10 @@ jobs:
           mkdir -p out
           APP=build/sim/Build/Products/Debug-iphonesimulator/App.app
           UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys,os; d=json.load(sys.stdin)['devices']; n=os.environ['DEVICE']; l=[x for k,v in d.items() if 'iOS' in k for x in v if n in x['name']]; l=l or [x for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']]; print(l[-1]['udid'])")
-          echo "Simulator $UDID"; xcrun simctl boot "$UDID" || true; xcrun simctl bootstatus "$UDID" -b
+          echo "Simulator $UDID"
+          defaults write com.apple.iphonesimulator DevicePreferences -dict-add "$UDID" '{ ConnectHardwareKeyboard = 0; }' || true
+          xcrun simctl boot "$UDID" || true; xcrun simctl bootstatus "$UDID" -b
+          if [ "$TOUCH" = "true" ]; then idb_companion --udid "$UDID" > out/idb-companion.log 2>&1 & sleep 5; idb connect localhost 10882 || idb connect "$UDID" || true; fi
           ok=0
           for i in $(seq 1 "$RUNS"); do
             echo "=== Lauf $i ==="
@@ -65,6 +81,20 @@ jobs:
               sleep 3; n=$((n+1))
               [ $((n % 3)) -eq 0 ] && xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-$(printf %03d $n).jpg" >/dev/null 2>&1
               grep -q "QA-DONE" out/run$i-console.log && break
+              if [ "$TOUCH" = "true" ] && [ ! -f out/run$i-touch.done ] && grep -q "QA-RECT" out/run$i-console.log; then
+                L=$(grep "QA-RECT" out/run$i-console.log | tail -1); echo "$L"
+                IX=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="input"){print $(i+1); exit}}'); IY=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="input"){print $(i+2); exit}}')
+                BX=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+1); exit}}'); BY=$(echo "$L" | awk '{for(i=1;i<=NF;i++) if($i=="button"){print $(i+2); exit}}')
+                xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-1-vorher.jpg" >/dev/null 2>&1
+                idb ui tap --udid "$UDID" "$IX" "$IY"; sleep 2
+                xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-2-tastatur.jpg" >/dev/null 2>&1
+                idb ui text --udid "$UDID" "Alpakas"; sleep 1.5
+                xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-3-getippt.jpg" >/dev/null 2>&1
+                # Knopf an seiner (evtl. durch Tastatur verschobenen) Stelle: neu aus dem Log lesen, falls die Seite neu gemessen hat
+                idb ui tap --udid "$UDID" "$BX" "$BY"; sleep 2
+                xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-touch-4-abgeschickt.jpg" >/dev/null 2>&1
+                echo "touch: input $IX,$IY button $BX,$BY" | tee out/run$i-touch.done
+              fi
             done
             xcrun simctl io "$UDID" screenshot --type=jpeg "out/run$i-zz-final.jpg" >/dev/null 2>&1 || true
             grep "QA|" out/run$i-console.log | tail -400 > out/run$i-qa.log || true
